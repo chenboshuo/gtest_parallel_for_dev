@@ -33,20 +33,21 @@ $target_exe="$build_path/build/$environment/tests_acis.exe"
 $test_time=Get-Date -Format "yyyy-MM-dd HH.mm.ss";
 $need_clone=$false
 $need_build=$true
-$timeout_minutes = @(5, 5, 2, 1)
+$timeout_minutes = @(5, 5, 2, 1) 
 $wait_time=1 #wait 1 second
 $job_nums = @(8, 32, 8, 4)
 $batch_nums = @(64, 1, 1, 1)
 $save_cases_time_cost = $false
 $retry_times = 2
-
+$repeat_success = $false # filename is the success name
+$record_skipped_cases = $true # require set repeat_success=$false
 
 $start_script_time=Get-Date
 # check target log file
 if ((Test-Path $log_path)) {
   $given_test_list = Test-Path $fail_filter_path
   $backup = "$log_path"+"_backup_$test_time"
-  mv $log_path $backup
+  mv $log_path $backup 
 
   # keep fail list
   if($given_test_list){
@@ -104,7 +105,7 @@ if($need_build){
 
     # restore cmake
     rm $src_cmake_file
-    mv $src_cmake_file_backup $src_cmake_file
+    mv $src_cmake_file_backup $src_cmake_file 
     rm $src_acis_cmake_file
     mv $src_acis_cmake_file_backup $src_acis_cmake_file
   }
@@ -145,7 +146,7 @@ $build_finish_time=Get-Date
 
 # get list if no list is given
 if($test_list.Count -eq 0){
-  $get_list_command = "$target_exe" +
+  $get_list_command = "$target_exe" + 
     " --gtest_filter=$run_cases --gtest_list_tests > $log_path/test_list.txt"
   Invoke-Expression $get_list_command
   Get-Content -Path "$log_path/test_list.txt"| ForEach-Object {
@@ -216,13 +217,13 @@ for ($t = 0; $t -lt $retry_times; $t += 1){
 
 
         # info
-        echo "Test start from $test_time To $(Get-Date -Format "yyyy-MM-dd_HH.mm.ss")" >> $using:log_path/running_$job_id.log
-        echo "time cost: $executionTime ms" >> $using:log_path/running_$job_id.log
-        echo "memory used: $memoryUsageMB MB" >>  $using:log_path/running_$job_id.log
+        echo "Test start from $test_time To $(Get-Date -Format "yyyy-MM-dd_HH.mm.ss")" >>  $using:log_path/running_$job_id.log 
+        echo "time cost: $executionTime ms" >> $using:log_path/running_$job_id.log 
+        echo "memory used: $memoryUsageMB MB" >>  $using:log_path/running_$job_id.log 
       }else{
         Invoke-Expression $target_command >> $using:log_path/running_$job_id.log;
       }
-
+     
       $end_time=Get-Date
       $name_list = $case_name.Split(":")
       if($success){ # success
@@ -230,11 +231,14 @@ for ($t = 0; $t -lt $retry_times; $t += 1){
       }else{
         $new_log_loc = $using:log_path + "/fail_$using:batch_num" + "_batch_cases/";
       }
-      foreach ($single_name in $name_list){
-        $full_path = $new_log_loc + $single_name + "_" + $test_time + ".log"
+      $selectedNames = if ($using:repeat_success -or (-not $success)) { 
+        $name_list 
+      } else { $name_list[0] }
+      foreach ($single_name in $selectedNames) {
+        $full_path = "$new_log_loc$single_name`_$test_time.log"
         $directory = Split-Path $full_path -Parent
         New-Item -ItemType Directory -Path $directory -Force > $null
-        cp $using:log_path/running_$job_id.log $full_path -Force
+        cp "$using:log_path/running_$job_id.log" $full_path -Force
       }
       rm $using:log_path/running_$job_id.log
       return $success
@@ -250,10 +254,10 @@ for ($t = 0; $t -lt $retry_times; $t += 1){
 
     # update progress
     $total_cost_time=($now-$round_start_time).ToString("dd' days 'hh':'mm':'ss")
-    $progress.CurrentOperation = $test_list[$i .. ($i+$job_num-1)] -join ", "
-
+    $progress.CurrentOperation = $test_list[$i .. ($i+$job_num-1)] -join ", " 
+    
     $percent=($test_id / $test_list.Count) * 100
-    $progress.PercentComplete = $percent
+    $progress.PercentComplete = $percent 
     $progress.Status = "[$($t+1)/$retry_times] fail: $fail_count, success: $success_count [$total_cost_time] | $percent %"
     Write-Progress @progress
     $test_id += $job_num*$batch_num
@@ -278,7 +282,7 @@ for ($t = 0; $t -lt $retry_times; $t += 1){
           New-Item -ItemType Directory -Path $directory -Force > $null
           cp $log_path/running_$job_id.log $new_log_loc -Force
         }
-        rm $log_path/running_$job_id.log
+        rm $log_path/running_$job_id.log 
         $fail_count += $batch_count
       } else {
           # 等待作业完成，并获取输出（包含变量的值）
@@ -326,7 +330,7 @@ for ($t = 0; $t -lt $retry_times; $t += 1){
   $case_count=($fail_count+$success_count)
   show_and_save "tested $case_count cases"
   show_and_save "fail: $fail_count, success: $success_count"
-  show_and_save "fail_rate: $(100*$fail_count / $case_count) %"
+  show_and_save "fail_rate: $(100*$fail_count / $case_count) %" 
   show_and_save "success_rate: $(100*$success_count / $case_count) %"
 
   $test_list = $fail_test_list
@@ -349,11 +353,35 @@ show_and_save "all cost: $script_cost_time (building cost $build_cost)"
 show_and_save "tested $all_cases_num cases"
 $success_count = $all_cases_num - $fail_count
 show_and_save "fail: $fail_count, success: $success_count"
-show_and_save "fail_rate: $(100*$fail_count / $all_cases_num) %"
+show_and_save "fail_rate: $(100*$fail_count / $all_cases_num) %" 
 show_and_save "success_rate: $(100*$success_count / $all_cases_num) %"
 
 foreach($fail_case in $fail_test_list){
   echo "$fail_case failed"
+}
+
+if($record_skipped_cases){
+  $success_path = "$log_path/success"
+  $success_files = Get-ChildItem -Path $log_path -Recurse -File -Filter "*.log"
+  $skipped_cases = @()
+  foreach ($success_file in $success_files) {
+    # Read the file and extract skipped test names
+    $skipped_tests = Get-Content $success_file.FullName |
+        Where-Object { $_ -match '\[  SKIPPED \] (.+) \(' } |
+        ForEach-Object { $matches[1] }
+    # match example:  [  SKIPPED ] SurfSurfInterTest/ConeSpline.Case1/tol_8 (2 ms)
+    # use left pathess ( to make the match unique
+
+    # Add extracted test names to the list
+    $skipped_cases += $skipped_tests
+    echo $matches[1]
+  }
+  # Remove duplicates
+  $skipped_cases = $skipped_cases | Sort-Object -Unique
+  echo $skipped_cases
+  $skipped_cases | 
+    ForEach-Object { [PSCustomObject]@{ Value = $_ } } |
+    Export-Csv -Path $log_path/skipped_list.csv -NoTypeInformation
 }
 
 $host.UI.RawUI.WindowTitle = $test_title
